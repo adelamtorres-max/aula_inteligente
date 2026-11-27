@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Probar modelos de aprendizaje automático</title>
+<title>Aula Inteligente | Adela Torres</title>
 
 <!-- =====================================================
      PARTE 1: ESTILOS (CSS)
@@ -35,6 +35,11 @@
   img { max-width: 100%; max-height: 300px; margin-top: 12px; }
   .resultado { font-size: 20px; font-weight: bold; margin-top: 12px; }
   .error { color: #b3382c; }
+  .pregunta-vak { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; }
+  .pregunta-vak label { margin-top: 6px; }
+  .respuesta-recomendacion { white-space: pre-line; line-height: 1.5; }
+  .prompt-sbc { margin-top: 16px; padding: 12px; border: 1px solid #b8c5df; border-radius: 8px; background: #f7f9fc; }
+  .prompt-sbc pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: Consolas, monospace; font-size: 13px; }
 
   /* Para ocultar un panel */
   .oculto { display: none; }
@@ -44,7 +49,9 @@
 <body>
 <div class="contenedor">
 
-  <h1>Probar modelos de aprendizaje automático</h1>
+  <h1>Aula Inteligente</h1>
+  <p>Aplicación de modelos de aprendizaje automático</p>
+  <p><strong>Desarrollado por:</strong> Adela Torres</p>
 
   <!-- =====================================================
        PARTE 2: PESTAÑAS
@@ -53,6 +60,7 @@
   <div class="pestanas">
     <button id="boton-perros" class="activa" onclick="mostrarPanel('perros')">Perros y gatos</button>
     <button id="boton-estudiante" onclick="mostrarPanel('estudiante')">Adaptabilidad del estudiante</button>
+    <button id="boton-aprendo" onclick="mostrarPanel('aprendo')">Cómo aprendo</button>
   </div>
 
   <!-- =====================================================
@@ -208,6 +216,25 @@
     <div id="resultado-estudiante" class="resultado"></div>
   </div>
 
+  <!-- MODELO 3: RECOMENDACIÓN EDUCATIVA CON SBC Y GEMINI -->
+  <div id="panel-aprendo" class="tarjeta oculto">
+    <h2>¿Cómo aprendo?</h2>
+    <p>Responde estas preguntas para recibir recomendaciones de estudio adaptadas a tus preferencias y a tu nivel de adaptabilidad virtual.</p>
+    <form id="form-vak">
+      <div class="pregunta-vak"><strong>1. Cuando aprendo un tema nuevo, prefiero:</strong><label><input type="radio" name="q1" value="V" required> Ver esquemas, imágenes o demostraciones.</label><label><input type="radio" name="q1" value="A"> Escuchar explicaciones y conversar sobre el tema.</label></div>
+      <div class="pregunta-vak"><strong>2. Para recordar información, me ayuda más:</strong><label><input type="radio" name="q2" value="V" required> Leer, observar colores, gráficos y apuntes.</label><label><input type="radio" name="q2" value="A"> Repetir, escuchar o explicarlo en voz alta.</label></div>
+      <div class="pregunta-vak"><strong>3. En una clase, me resulta útil:</strong><label><input type="radio" name="q3" value="V" required> Una presentación visual o una demostración.</label><label><input type="radio" name="q3" value="A"> La explicación oral y las preguntas.</label></div>
+      <div class="pregunta-vak"><strong>4. Si tengo que resolver una tarea, prefiero:</strong><label><input type="radio" name="q4" value="V" required> Seguir ejemplos, dibujos o instrucciones visuales.</label><label><input type="radio" name="q4" value="A"> Escuchar instrucciones y dialogar paso a paso.</label></div>
+      <div class="pregunta-vak"><strong>5. Para estudiar antes de una evaluación, suelo:</strong><label><input type="radio" name="q5" value="V" required> Organizar notas, mapas o tarjetas visuales.</label><label><input type="radio" name="q5" value="A"> Repasar hablando, escuchando o con compañeros.</label></div>
+      <button type="button" class="boton" onclick="generarRecomendacion()">Generar recomendación</button>
+    </form>
+    <div id="resultado-recomendacion" class="resultado respuesta-recomendacion"></div>
+    <details id="panel-prompt-sbc" class="prompt-sbc oculto">
+      <summary><strong>Ver el prompt generado por el SBC</strong></summary>
+      <pre id="prompt-sbc"></pre>
+    </details>
+  </div>
+
 </div>
 
 <!-- =====================================================
@@ -219,7 +246,7 @@
 // ---------------------------------------------------------
 // 5.1 DIRECCIÓN DEL SERVIDOR
 // Pega aquí el enlace que te dio ngrok en Colab (entre las comillas),
-// por ejemplo: "https://algo-raro.ngrok-free.dev"
+// por ejemplo: "https://6f2e-34-133-98-140.ngrok-free.app"
 // IMPORTANTE: sin "/" al final.
 //
 // ¿CÓMO SABE ESTA PÁGINA A DÓNDE LLAMAR?
@@ -263,8 +290,10 @@ function mostrarPanel(nombre) {
   // Ocultar los dos paneles y quitar el color a los dos botones
   document.getElementById("panel-perros").classList.add("oculto");
   document.getElementById("panel-estudiante").classList.add("oculto");
+  document.getElementById("panel-aprendo").classList.add("oculto");
   document.getElementById("boton-perros").classList.remove("activa");
   document.getElementById("boton-estudiante").classList.remove("activa");
+  document.getElementById("boton-aprendo").classList.remove("activa");
 
   // Mostrar solo el panel elegido y marcar su botón
   document.getElementById("panel-" + nombre).classList.remove("oculto");
@@ -443,6 +472,71 @@ async function evaluarEstudiante() {
     cajaResultado.classList.add("error");
   }
 }
-</script>
-</body>
-</html>
+
+
+// ---------------------------------------------------------
+// 5.5 MODELO 3: RECOMENDACIÓN EDUCATIVA (SBC + GEMINI)
+// Primero estima adaptabilidad con el modelo existente; luego
+// envía estilo, nivel y edad a la nueva ruta de recomendación.
+// ---------------------------------------------------------
+async function generarRecomendacion() {
+  const caja = document.getElementById("resultado-recomendacion");
+  const formulario = document.getElementById("form-vak");
+  if (!formulario.reportValidity()) return;
+  caja.textContent = "Analizando respuestas y generando recomendación...";
+  caja.classList.remove("error");
+
+  const letras = [];
+  for (let i = 1; i <= 5; i++) {
+    const seleccion = formulario.querySelector(`input[name="q${i}"]:checked`);
+    if (seleccion) letras.push(seleccion.value);
+  }
+
+  // Reutiliza los 13 datos del panel de adaptabilidad.
+  const datosEstudiante = {};
+  for (const pregunta of PREGUNTAS) {
+    datosEstudiante[pregunta] = document.getElementById(pregunta).value;
+  }
+
+  try {
+    const respAdapt = await fetch(SERVIDOR + "/api/adaptabilidad", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...ENCABEZADO_NGROK },
+      body: JSON.stringify(datosEstudiante)
+    });
+    if (!respAdapt.ok) throw new Error("No se pudo evaluar la adaptabilidad.");
+    const adapt = await respAdapt.json();
+
+    const respRec = await fetch(SERVIDOR + "/api/recomendacion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...ENCABEZADO_NGROK },
+      body: JSON.stringify({
+        respuestas: letras,
+        nivel: adapt.nivel,
+        edad: datosEstudiante["Age"]
+      })
+    });
+    if (!respRec.ok) throw new Error("El servidor no pudo generar la recomendación.");
+    const recomendacion = await respRec.json();
+
+    const estilo = recomendacion.estilo || (letras.filter(x => x === "V").length >= letras.filter(x => x === "A").length ? "visual" : "auditivo");
+    caja.textContent = "Perfil predominante: " + estilo + "\nAdaptabilidad virtual: " + (NIVELES[adapt.nivel] || adapt.nivel) + "\n\n" + recomendacion.recomendacion;
+    caja.classList.remove("error");
+
+    // Mostrar el prompt del SBC si el servidor lo incluye en la respuesta JSON.
+    const prompt = recomendacion.prompt || recomendacion.prompt_sbc || recomendacion.prompt_generado || recomendacion.prompt_generado_sbc;
+    const panelPrompt = document.getElementById("panel-prompt-sbc");
+    const textoPrompt = document.getElementById("prompt-sbc");
+    if (prompt && panelPrompt && textoPrompt) {
+      textoPrompt.textContent = prompt;
+      panelPrompt.classList.remove("oculto");
+      panelPrompt.open = false;
+    } else if (panelPrompt) {
+      panelPrompt.classList.add("oculto");
+      if (textoPrompt) textoPrompt.textContent = "";
+    }
+  } catch (error) {
+    caja.textContent = "No se pudo generar la recomendación. Verifica que Colab esté activo y que SERVIDOR contenga el enlace ngrok vigente. Detalle: " + error.message;
+    caja.classList.add("error");
+  }
+}
